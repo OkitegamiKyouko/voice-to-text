@@ -1,6 +1,8 @@
 const OPENAI_MAX_FILE_SIZE = 25 * 1024 * 1024;
 const GEMINI_MAX_FILE_SIZE = 14 * 1024 * 1024;
 const MAX_FILES = 2;
+const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-2.5-flash'];
+const GEMINI_MAX_ATTEMPTS = 4;
 const SPEAKER_COLORS = ['#ff5a1f', '#5577ff', '#14a06f', '#ad54d3', '#d89a00', '#e14b86'];
 
 const elements = {
@@ -232,6 +234,43 @@ const fileToBase64 = (file) => new Promise((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
+const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+const requestGemini = async (payload, key, purpose) => {
+  let lastError = new Error('Gemini временно недоступен.');
+  for (let modelIndex = 0; modelIndex < GEMINI_MODELS.length; modelIndex += 1) {
+    const model = GEMINI_MODELS[modelIndex];
+    if (modelIndex > 0) {
+      setStatus(`${purpose}: основная модель перегружена, переключаемся на ${model}…`);
+    }
+    for (let attempt = 0; attempt < GEMINI_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok) return data;
+        const error = new Error(data.error?.message || `Ошибка Gemini API (${response.status})`);
+        const isTransient = response.status === 429 || response.status >= 500;
+        if (!isTransient) throw error;
+        error.isTransient = true;
+        lastError = error;
+      } catch (error) {
+        if (!(error instanceof TypeError) && !error.isTransient) throw error;
+        lastError = error;
+      }
+      if (attempt < GEMINI_MAX_ATTEMPTS - 1) {
+        const delaySeconds = 2 ** attempt;
+        setStatus(`${purpose}: ${model} временно недоступна. Повтор ${attempt + 2} из ${GEMINI_MAX_ATTEMPTS} через ${delaySeconds} сек.…`);
+        await wait(delaySeconds * 1000);
+      }
+    }
+  }
+  throw lastError;
+};
+
 const transcriptSchema = (includeSource = false) => {
   const properties = {
     speaker: { type: 'string', description: 'Stable short speaker identifier such as A, B, C.' },
@@ -280,11 +319,7 @@ const transcribeWithGemini = async (file, key, source) => {
     ] }],
     generationConfig: { responseMimeType: 'application/json', responseJsonSchema: transcriptSchema(false), temperature: 0.1 },
   };
-  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(payload),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error?.message || `Ошибка Gemini API (${response.status})`);
+  const data = await requestGemini(payload, key, `Транскрипция записи ${source}`);
   const resultText = data.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
   if (!resultText) throw new Error('Gemini не вернул текст расшифровки.');
   return normalizeResponse(JSON.parse(resultText), source);
@@ -307,11 +342,7 @@ const distillWithGemini = async (transcripts, key) => {
     contents: [{ role: 'user', parts: [{ text: `${distillationInstruction}\n\nINPUT:\n${JSON.stringify(transcriptsForPrompt(transcripts))}` }] }],
     generationConfig: { responseMimeType: 'application/json', responseJsonSchema: transcriptSchema(true), temperature: 0.1 },
   };
-  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(payload),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error?.message || `Ошибка Gemini при объединении (${response.status})`);
+  const data = await requestGemini(payload, key, 'Объединение расшифровок');
   const resultText = data.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
   if (!resultText) throw new Error('Gemini не вернул объединённую расшифровку.');
   return normalizeResponse(JSON.parse(resultText), 1);
@@ -388,11 +419,7 @@ const generateInsightsWithGemini = async (transcript, key) => {
     contents: [{ role: 'user', parts: [{ text: `${insightInstruction}\n\nFINAL TRANSCRIPT:\n${JSON.stringify(transcriptForInsights(transcript))}` }] }],
     generationConfig: { responseMimeType: 'application/json', responseJsonSchema: insightSchema(), temperature: 0.1 },
   };
-  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(payload),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error?.message || `Ошибка Gemini при подготовке пересказа (${response.status})`);
+  const data = await requestGemini(payload, key, 'Подготовка пересказа');
   const resultText = data.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
   if (!resultText) throw new Error('Gemini не вернул пересказ и выдержки.');
   return normalizeInsights(JSON.parse(resultText), transcript);
