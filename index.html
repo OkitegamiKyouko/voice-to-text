@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>Голос в текст — транскрибация разговоров</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Unbounded:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="Голос в текст">
+      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      <span>ГОЛОС В ТЕКСТ</span>
+    </a>
+    <div class="privacy"><span></span> Файл не сохраняется на сервере приложения</div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <p class="eyebrow">ТРАНСКРИБАЦИЯ С ДИАРИЗАЦИЕЙ</p>
+      <h1>Разговор —<br><em>по голосам.</em></h1>
+      <p class="lead">Загрузите запись встречи, интервью или звонка. Получите точную расшифровку с временными метками и разделением собеседников.</p>
+    </section>
+
+    <section class="workspace" aria-label="Транскрибация аудио">
+      <div class="upload-panel">
+        <form id="transcription-form">
+          <fieldset class="provider-field">
+            <legend>Провайдер распознавания</legend>
+            <div class="provider-switch">
+              <label><input type="radio" name="provider" value="openai" checked><span>OpenAI</span></label>
+              <label><input type="radio" name="provider" value="gemini"><span>Google Gemini</span></label>
+            </div>
+          </fieldset>
+          <label class="api-field">
+            <span id="api-key-label">OpenAI API-ключ</span>
+            <span class="key-wrap">
+              <input id="api-key" name="apiKey" type="password" autocomplete="off" placeholder="sk-..." required>
+              <button id="toggle-key" class="icon-button" type="button" aria-label="Показать API-ключ">◉</button>
+            </span>
+            <small id="api-key-help">Используется только для запроса и не сохраняется.</small>
+          </label>
+
+          <div id="drop-zone" class="drop-zone" role="button" tabindex="0" aria-label="Выберите или перетащите два аудиофайла">
+            <input id="audio-file" type="file" accept="audio/*,.mp3,.mp4,.mpeg,.mpga,.m4a,.wav,.webm,.aiff,.aac,.ogg,.flac" multiple hidden>
+            <div class="upload-icon" aria-hidden="true">↑</div>
+            <h2>Загрузите две аудиозаписи</h2>
+            <p>Перетащите файлы или <span>выберите на компьютере</span></p>
+            <small id="file-hint">MP3, M4A, WAV, WEBM, MP4 · до 25 МБ каждый</small>
+          </div>
+
+          <div id="file-list" class="file-list" aria-live="polite"></div>
+
+          <label class="language-field">
+            <span>Язык записи</span>
+            <select id="language">
+              <option value="">Определить автоматически</option>
+              <option value="ru">Русский</option>
+              <option value="en">English</option>
+              <option value="de">Deutsch</option>
+              <option value="fr">Français</option>
+              <option value="es">Español</option>
+              <option value="it">Italiano</option>
+              <option value="pt">Português</option>
+              <option value="uk">Українська</option>
+            </select>
+          </label>
+
+          <button id="submit-button" class="primary-button" type="submit" disabled>
+            <span>Транскрибировать и объединить</span><b aria-hidden="true">→</b>
+          </button>
+          <div id="status" class="status" role="status" aria-live="polite"></div>
+          <div id="progress-panel" class="progress-panel" role="status" aria-live="polite" hidden>
+            <div class="progress-copy">
+              <strong id="progress-phase">Подготавливаем записи…</strong>
+              <span id="progress-eta">Оцениваем время</span>
+            </div>
+            <div class="progress-track" aria-hidden="true"><i id="progress-bar"></i></div>
+            <small>Оценка приблизительная: API не сообщает точный процент выполнения.</small>
+          </div>
+        </form>
+      </div>
+
+      <aside class="steps" aria-label="Как это работает">
+        <h2>Как это работает</h2>
+        <ol>
+          <li><span>01</span><div><strong>Загрузите две записи</strong><p>Выберите две версии одного разговора.</p></div></li>
+          <li><span>02</span><div><strong>Транскрибация</strong><p>Модель распознает обе записи и определит говорящих.</p></div></li>
+          <li><span>03</span><div><strong>Дистилляция</strong><p>AI сопоставит версии, уберёт дубли и соберёт чистовой текст.</p></div></li>
+        </ol>
+        <div class="feature-note"><b>AI</b><p><strong>Голоса определяются автоматически</strong><br>Даже когда собеседники перебивают друг друга.</p></div>
+      </aside>
+    </section>
+
+    <section id="result-section" class="results" hidden>
+      <div class="results-head">
+        <div><p class="eyebrow">ОБЪЕДИНЁННЫЙ РЕЗУЛЬТАТ</p><h2>Чистовой текст</h2></div>
+        <div class="result-actions">
+          <button id="copy-result" class="secondary-button" type="button">Копировать</button>
+          <button id="download-txt" class="secondary-button" type="button">Скачать TXT</button>
+          <button id="download-json" class="secondary-button" type="button">Скачать JSON</button>
+        </div>
+      </div>
+      <div id="speaker-editor" class="speaker-editor"></div>
+      <div id="insights" class="insights" hidden>
+        <article class="summary-card">
+          <p class="eyebrow">КРАТКИЙ ПЕРЕСКАЗ</p>
+          <div id="summary-text"></div>
+        </article>
+        <article class="highlights-card">
+          <p class="eyebrow">КЛЮЧЕВЫЕ ВЫДЕРЖКИ</p>
+          <div id="highlights"></div>
+        </article>
+      </div>
+      <div id="transcript" class="transcript"></div>
+    </section>
+  </main>
+
+  <footer><span>ГОЛОС В ТЕКСТ</span><p>Обе записи отправляются напрямую только в выбранный API после нажатия кнопки.</p></footer>
+  <script src="app.js"></script>
+</body>
+</html>
