@@ -88,6 +88,16 @@ main { width: min(1180px, calc(100% - 44px)); margin: 0 auto; }
 .highlight:first-child { padding-top: 0; border-top: 0; }
 .highlight blockquote { margin: 0 0 7px; font-size: 14px; line-height: 1.55; }
 .highlight span { color: var(--muted); font-size: 10px; }
+.drive-export { margin: 0 0 34px; padding: 24px; display: grid; grid-template-columns: minmax(220px, .8fr) minmax(300px, 1.2fr); gap: 28px; border: 1px solid var(--ink); background: var(--acid); }
+.drive-export h3 { margin: 0 0 9px; font: 500 20px Unbounded, sans-serif; letter-spacing: -.04em; }
+.drive-export p:not(.eyebrow) { margin: 0; color: #4f4e47; font-size: 12px; line-height: 1.55; }
+.drive-settings { display: grid; gap: 11px; }
+.drive-settings label { display: grid; gap: 6px; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.drive-settings input { min-width: 0; padding: 11px 12px; border: 1px solid var(--ink); background: white; font-size: 12px; text-transform: none; }
+.drive-settings .primary-button { margin: 2px 0 0; background: var(--ink); }
+.drive-status { min-height: 18px; font-size: 11px; line-height: 1.5; }
+.drive-status.error { color: #b42318; }
+.drive-status a { margin-right: 12px; color: var(--ink); font-weight: 700; }
 .transcript { display: grid; gap: 2px; }.segment { display: grid; grid-template-columns: 78px 130px 1fr; gap: 20px; padding: 19px 12px; border-top: 1px solid var(--line); }.segment time { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }.segment strong { font-size: 12px; }.segment p { margin: 0; font-size: 15px; line-height: 1.65; }
 
 footer { width: min(1180px, calc(100% - 44px)); margin: 90px auto 0; padding: 30px 0 42px; display: flex; justify-content: space-between; gap: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }footer span { color: var(--ink); font-family: Unbounded, sans-serif; }footer p { margin: 0; }
@@ -99,6 +109,7 @@ footer { width: min(1180px, calc(100% - 44px)); margin: 90px auto 0; padding: 30
   .workspace { grid-template-columns: 1fr; box-shadow: 5px 5px 0 var(--ink); }.upload-panel { border-right: 0; border-bottom: 1px solid var(--ink); }
   .results-head { align-items: start; flex-direction: column; }.result-actions { justify-content: start; }
   .insights { grid-template-columns: 1fr; }
+  .drive-export { grid-template-columns: 1fr; }
   .progress-copy { flex-direction: column; gap: 5px; }.progress-copy span { text-align: left; }
   .segment { grid-template-columns: 70px 1fr; gap: 7px 12px; }.segment p { grid-column: 2; }
   footer { width: calc(100% - 28px); flex-direction: column; }

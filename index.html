@@ -116,11 +116,31 @@
           <div id="highlights"></div>
         </article>
       </div>
+      <section class="drive-export" aria-labelledby="drive-export-title">
+        <div>
+          <p class="eyebrow">GOOGLE DRIVE</p>
+          <h3 id="drive-export-title">Сохранить для research-потока</h3>
+          <p>Загрузит отдельно полную транскрипцию, пересказ с выдержками и JSON с таймкодами.</p>
+        </div>
+        <div class="drive-settings">
+          <label>
+            <span>Google OAuth Client ID</span>
+            <input id="drive-client-id" type="text" autocomplete="off" placeholder="123456789-….apps.googleusercontent.com">
+          </label>
+          <label>
+            <span>ID папки Google Drive</span>
+            <input id="drive-folder-id" type="text" autocomplete="off" value="1NwXDgTR4A99hJNd_NzouPsdcC-BHD9iD">
+          </label>
+          <button id="drive-upload" class="primary-button" type="button"><span>Подключить Drive и загрузить</span><b aria-hidden="true">↑</b></button>
+          <div id="drive-status" class="drive-status" role="status" aria-live="polite"></div>
+        </div>
+      </section>
       <div id="transcript" class="transcript"></div>
     </section>
   </main>
 
   <footer><span>ГОЛОС В ТЕКСТ</span><p>Обе записи отправляются напрямую только в выбранный API после нажатия кнопки.</p></footer>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="app.js"></script>
 </body>
 </html>

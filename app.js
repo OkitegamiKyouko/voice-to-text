@@ -3,6 +3,7 @@ const GEMINI_MAX_FILE_SIZE = 14 * 1024 * 1024;
 const MAX_FILES = 2;
 const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite'];
 const GEMINI_MAX_ATTEMPTS = 4;
+const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const SPEAKER_COLORS = ['#ff5a1f', '#5577ff', '#14a06f', '#ad54d3', '#d89a00', '#e14b86'];
 
 const elements = {
@@ -28,6 +29,10 @@ const elements = {
   insights: document.querySelector('#insights'),
   summary: document.querySelector('#summary-text'),
   highlights: document.querySelector('#highlights'),
+  driveClientId: document.querySelector('#drive-client-id'),
+  driveFolderId: document.querySelector('#drive-folder-id'),
+  driveUpload: document.querySelector('#drive-upload'),
+  driveStatus: document.querySelector('#drive-status'),
   transcript: document.querySelector('#transcript'),
   copy: document.querySelector('#copy-result'),
   downloadTxt: document.querySelector('#download-txt'),
@@ -510,14 +515,87 @@ const renderTranscript = () => {
 };
 
 const transcriptAsText = () => {
-  const summary = insightData?.summary ? `КРАТКИЙ ПЕРЕСКАЗ\n\n${insightData.summary}\n\n` : '';
-  const highlights = insightData?.highlights?.length
-    ? `КЛЮЧЕВЫЕ ВЫДЕРЖКИ\n\n${insightData.highlights.map((item) => `«${item.quote}» — ${speakerLabel(item.speaker)}, запись ${item.source}, ${formatTime(item.start)}. ${item.note}`).join('\n\n')}\n\n`
-    : '';
-  const transcript = transcriptData.segments
+  return `${insightsAsText()}\n\nРАСШИФРОВКА\n\n${transcriptOnlyAsText()}`;
+};
+
+const transcriptOnlyAsText = () => transcriptData.segments
     .map((segment) => `[Запись ${segment.source} · ${formatTime(segment.start)}] ${speakerLabel(segment.speaker)}: ${segment.text}`)
     .join('\n\n');
-  return `${summary}${highlights}РАСШИФРОВКА\n\n${transcript}`;
+
+const insightsAsText = () => {
+  const summary = insightData?.summary ? `КРАТКИЙ ПЕРЕСКАЗ\n\n${insightData.summary}` : 'КРАТКИЙ ПЕРЕСКАЗ\n\nНет данных.';
+  const highlights = insightData?.highlights?.length
+    ? insightData.highlights.map((item) => `«${item.quote}» — ${speakerLabel(item.speaker)}, запись ${item.source}, ${formatTime(item.start)}. ${item.note}`).join('\n\n')
+    : 'Нет данных.';
+  return `${summary}\n\nКЛЮЧЕВЫЕ ВЫДЕРЖКИ\n\n${highlights}`;
+};
+
+const resultAsJson = () => JSON.stringify({
+  exported_at: new Date().toISOString(),
+  sources: selectedFiles.map((file) => file.name),
+  speakers: speakerNames,
+  raw_transcripts: rawTranscripts,
+  summary: insightData?.summary || '',
+  highlights: insightData?.highlights || [],
+  segments: transcriptData.segments.map((segment) => ({ ...segment, speaker_name: speakerLabel(segment.speaker) })),
+}, null, 2);
+
+const setDriveStatus = (message = '', isError = false) => {
+  elements.driveStatus.textContent = message;
+  elements.driveStatus.classList.toggle('error', isError);
+};
+
+const getDriveAccessToken = (clientId) => new Promise((resolve, reject) => {
+  if (!window.google?.accounts?.oauth2) {
+    reject(new Error('Google Identity Services не загрузился. Откройте приложение через GitHub Pages и обновите страницу.'));
+    return;
+  }
+  const client = window.google.accounts.oauth2.initTokenClient({
+    client_id: clientId,
+    scope: GOOGLE_DRIVE_SCOPE,
+    callback: (response) => {
+      if (response?.access_token && window.google.accounts.oauth2.hasGrantedAllScopes(response, GOOGLE_DRIVE_SCOPE)) {
+        resolve(response.access_token);
+      } else {
+        reject(new Error(response?.error_description || 'Доступ к Google Drive не был предоставлен.'));
+      }
+    },
+    error_callback: (error) => reject(new Error(error?.message || 'Окно авторизации Google было закрыто.')),
+  });
+  client.requestAccessToken({ prompt: '' });
+});
+
+const uploadDriveFile = async ({ token, folderId, name, mimeType, content }) => {
+  const boundary = `voice-to-text-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const metadata = { name };
+  if (folderId) metadata.parents = [folderId];
+  const body = [
+    `--${boundary}`,
+    'Content-Type: application/json; charset=UTF-8',
+    '',
+    JSON.stringify(metadata),
+    `--${boundary}`,
+    `Content-Type: ${mimeType}; charset=UTF-8`,
+    '',
+    content,
+    `--${boundary}--`,
+    '',
+  ].join('\r\n');
+  const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+    body,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error?.message || `Ошибка Google Drive (${response.status})`);
+  return data;
+};
+
+const exportBaseName = () => {
+  const source = selectedFiles[0]?.name.replace(/\.[^.]+$/, '') || 'conversation';
+  const safeSource = source.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').slice(0, 48) || 'conversation';
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+  return `${stamp}-${safeSource}`;
 };
 
 const download = (content, type, extension) => {
@@ -629,8 +707,51 @@ elements.copy.addEventListener('click', async () => {
   } catch { setStatus('Браузер запретил буфер обмена. Скачайте TXT-файл.', true); }
 });
 elements.downloadTxt.addEventListener('click', () => download(transcriptAsText(), 'text/plain;charset=utf-8', 'txt'));
-elements.downloadJson.addEventListener('click', () => download(JSON.stringify({
-  sources: selectedFiles.map((file) => file.name), speakers: speakerNames, raw_transcripts: rawTranscripts,
-  summary: insightData?.summary || '', highlights: insightData?.highlights || [],
-  segments: transcriptData.segments.map((segment) => ({ ...segment, speaker_name: speakerLabel(segment.speaker) })),
-}, null, 2), 'application/json;charset=utf-8', 'json'));
+elements.downloadJson.addEventListener('click', () => download(resultAsJson(), 'application/json;charset=utf-8', 'json'));
+
+try {
+  elements.driveClientId.value = localStorage.getItem('voice-to-text.google-client-id') || '';
+  elements.driveFolderId.value = localStorage.getItem('voice-to-text.drive-folder-id') || elements.driveFolderId.value;
+} catch {}
+
+elements.driveUpload.addEventListener('click', async () => {
+  const clientId = elements.driveClientId.value.trim();
+  const folderId = elements.driveFolderId.value.trim();
+  if (!clientId) {
+    setDriveStatus('Укажите Google OAuth Client ID.', true);
+    elements.driveClientId.focus();
+    return;
+  }
+  elements.driveUpload.disabled = true;
+  elements.driveUpload.querySelector('span').textContent = 'Подключаем Google Drive…';
+  setDriveStatus('Откройте окно Google и подтвердите доступ только к файлам этого приложения.');
+  try {
+    try {
+      localStorage.setItem('voice-to-text.google-client-id', clientId);
+      localStorage.setItem('voice-to-text.drive-folder-id', folderId);
+    } catch {}
+    const token = await getDriveAccessToken(clientId);
+    const baseName = exportBaseName();
+    elements.driveUpload.querySelector('span').textContent = 'Загружаем 3 файла…';
+    const files = await Promise.all([
+      uploadDriveFile({ token, folderId, name: `${baseName}-transcript.txt`, mimeType: 'text/plain', content: transcriptOnlyAsText() }),
+      uploadDriveFile({ token, folderId, name: `${baseName}-insights.txt`, mimeType: 'text/plain', content: insightsAsText() }),
+      uploadDriveFile({ token, folderId, name: `${baseName}-metadata.json`, mimeType: 'application/json', content: resultAsJson() }),
+    ]);
+    elements.driveStatus.replaceChildren(document.createTextNode('Готово: '));
+    files.forEach((file) => {
+      const link = document.createElement('a');
+      link.href = file.webViewLink || `https://drive.google.com/open?id=${file.id}`;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = file.name;
+      elements.driveStatus.append(link);
+    });
+    elements.driveStatus.classList.remove('error');
+  } catch (error) {
+    setDriveStatus(error.message || 'Не удалось загрузить файлы в Google Drive.', true);
+  } finally {
+    elements.driveUpload.disabled = false;
+    elements.driveUpload.querySelector('span').textContent = 'Подключить Drive и загрузить';
+  }
+});
