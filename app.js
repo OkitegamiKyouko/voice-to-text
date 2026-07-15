@@ -1,7 +1,7 @@
 const OPENAI_MAX_FILE_SIZE = 25 * 1024 * 1024;
 const GEMINI_MAX_FILE_SIZE = 14 * 1024 * 1024;
 const MAX_FILES = 2;
-const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-2.5-flash'];
+const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite'];
 const GEMINI_MAX_ATTEMPTS = 4;
 const SPEAKER_COLORS = ['#ff5a1f', '#5577ff', '#14a06f', '#ad54d3', '#d89a00', '#e14b86'];
 
