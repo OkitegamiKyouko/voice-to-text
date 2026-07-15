@@ -4,6 +4,7 @@ const MAX_FILES = 2;
 const GEMINI_MODELS = ['gemini-3.5-flash', 'gemini-3.1-flash-lite'];
 const GEMINI_MAX_ATTEMPTS = 4;
 const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const GOOGLE_DRIVE_CLIENT_ID = '782340315205-2brg4a3sm9qbtml5u6gudo6jhedlfn2m.apps.googleusercontent.com';
 const SPEAKER_COLORS = ['#ff5a1f', '#5577ff', '#14a06f', '#ad54d3', '#d89a00', '#e14b86'];
 
 const elements = {
@@ -710,7 +711,7 @@ elements.downloadTxt.addEventListener('click', () => download(transcriptAsText()
 elements.downloadJson.addEventListener('click', () => download(resultAsJson(), 'application/json;charset=utf-8', 'json'));
 
 try {
-  elements.driveClientId.value = localStorage.getItem('voice-to-text.google-client-id') || '';
+  elements.driveClientId.value = localStorage.getItem('voice-to-text.google-client-id') || GOOGLE_DRIVE_CLIENT_ID;
   elements.driveFolderId.value = localStorage.getItem('voice-to-text.drive-folder-id') || elements.driveFolderId.value;
 } catch {}
 

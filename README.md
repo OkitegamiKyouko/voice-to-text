@@ -13,10 +13,11 @@
 
 После обработки приложение может загрузить в выбранную папку Drive три файла: полную транскрипцию TXT, пересказ и выдержки TXT, а также JSON с говорящими и таймкодами. Загрузка использует Google Identity Services и узкий OAuth scope `drive.file`; токен живёт только в текущей вкладке.
 
-1. В Google Cloud включите Google Drive API и создайте OAuth Client ID типа **Web application**.
-2. Добавьте origin GitHub Pages `https://okitegamikyouko.github.io` в **Authorized JavaScript origins**. Путь `/voice-to-text/` в origin не добавляется.
-3. Вставьте Client ID в блок Google Drive под готовой транскрипцией.
-4. Оставьте заданный ID папки `Voice to Text` или укажите другую папку и нажмите **Подключить Drive и загрузить**.
+1. Завершите обработку двух записей.
+2. Оставьте заданный ID папки `Voice to Text` или укажите другую папку.
+3. Нажмите **Подключить Drive и загрузить** и подтвердите доступ в окне Google.
+
+Google Drive API и OAuth Client ID уже настроены для опубликованного приложения на `https://okitegamikyouko.github.io`. Поле Client ID предзаполнено, но его можно заменить при запуске собственной копии приложения с другим OAuth-проектом.
 
 Client ID не является секретом и сохраняется только в `localStorage` браузера. Приложение не хранит access token после закрытия или обновления вкладки.
 
