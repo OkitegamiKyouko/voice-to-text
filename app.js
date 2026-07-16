@@ -166,7 +166,7 @@ const normalizeResponse = (data, fallbackSource = 1) => {
     end: Math.max(0, Number(segment.end ?? segment.start) || 0),
     text: String(segment.text ?? '').trim(),
   })).filter((segment) => segment.text);
-  return { text: String(data.text ?? ''), segments };
+  return { text: String(data.text ?? segments.map((segment) => segment.text).join('\n')), segments };
 };
 
 const renderFiles = () => {
@@ -277,6 +277,24 @@ const requestGemini = async (payload, key, purpose) => {
   throw lastError;
 };
 
+const requestGeminiJson = async (payload, key, purpose, emptyMessage) => {
+  let lastParseError;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const data = await requestGemini(payload, key, purpose);
+    const resultText = data.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
+    if (!resultText) throw new Error(emptyMessage);
+    try {
+      return JSON.parse(resultText);
+    } catch (error) {
+      lastParseError = error;
+      if (attempt === 0) {
+        setStatus(`${purpose}: Gemini вернул повреждённый JSON. Повторяем только этот этап…`);
+      }
+    }
+  }
+  throw new Error(`${purpose}: Gemini дважды вернул повреждённый JSON. Повторите обработку; исходные аудиофайлы исправны. (${lastParseError?.message || 'ошибка JSON'})`);
+};
+
 const transcriptSchema = (includeSource = false) => {
   const properties = {
     speaker: { type: 'string', description: 'Stable short speaker identifier such as A, B, C.' },
@@ -292,10 +310,9 @@ const transcriptSchema = (includeSource = false) => {
   return {
     type: 'object',
     properties: {
-      text: { type: 'string', description: 'Full clean transcript.' },
       segments: { type: 'array', items: { type: 'object', properties, required, additionalProperties: false } },
     },
-    required: ['text', 'segments'],
+    required: ['segments'],
     additionalProperties: false,
   };
 };
@@ -325,10 +342,8 @@ const transcribeWithGemini = async (file, key, source) => {
     ] }],
     generationConfig: { responseMimeType: 'application/json', responseJsonSchema: transcriptSchema(false), temperature: 0.1 },
   };
-  const data = await requestGemini(payload, key, `Транскрипция записи ${source}`);
-  const resultText = data.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
-  if (!resultText) throw new Error('Gemini не вернул текст расшифровки.');
-  return normalizeResponse(JSON.parse(resultText), source);
+  const result = await requestGeminiJson(payload, key, `Транскрипция записи ${source}`, 'Gemini не вернул текст расшифровки.');
+  return normalizeResponse(result, source);
 };
 
 const transcriptsForPrompt = (transcripts) => transcripts.map((item, index) => ({
@@ -348,10 +363,8 @@ const distillWithGemini = async (transcripts, key) => {
     contents: [{ role: 'user', parts: [{ text: `${distillationInstruction}\n\nINPUT:\n${JSON.stringify(transcriptsForPrompt(transcripts))}` }] }],
     generationConfig: { responseMimeType: 'application/json', responseJsonSchema: transcriptSchema(true), temperature: 0.1 },
   };
-  const data = await requestGemini(payload, key, 'Объединение расшифровок');
-  const resultText = data.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
-  if (!resultText) throw new Error('Gemini не вернул объединённую расшифровку.');
-  return normalizeResponse(JSON.parse(resultText), 1);
+  const result = await requestGeminiJson(payload, key, 'Объединение расшифровок', 'Gemini не вернул объединённую расшифровку.');
+  return normalizeResponse(result, 1);
 };
 
 const distillWithOpenAI = async (transcripts, key) => {
@@ -425,10 +438,8 @@ const generateInsightsWithGemini = async (transcript, key) => {
     contents: [{ role: 'user', parts: [{ text: `${insightInstruction}\n\nFINAL TRANSCRIPT:\n${JSON.stringify(transcriptForInsights(transcript))}` }] }],
     generationConfig: { responseMimeType: 'application/json', responseJsonSchema: insightSchema(), temperature: 0.1 },
   };
-  const data = await requestGemini(payload, key, 'Подготовка пересказа');
-  const resultText = data.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
-  if (!resultText) throw new Error('Gemini не вернул пересказ и выдержки.');
-  return normalizeInsights(JSON.parse(resultText), transcript);
+  const result = await requestGeminiJson(payload, key, 'Подготовка пересказа', 'Gemini не вернул пересказ и выдержки.');
+  return normalizeInsights(result, transcript);
 };
 
 const generateInsightsWithOpenAI = async (transcript, key) => {
