@@ -277,6 +277,49 @@ const requestGemini = async (payload, key, purpose) => {
   throw lastError;
 };
 
+const removeTrailingJsonCommas = (input) => {
+  let output = '';
+  let insideString = false;
+  let escaped = false;
+  for (let index = 0; index < input.length; index += 1) {
+    const character = input[index];
+    if (insideString) {
+      output += character;
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === '"') insideString = false;
+      continue;
+    }
+    if (character === '"') {
+      insideString = true;
+      output += character;
+      continue;
+    }
+    if (character === ',') {
+      let nextIndex = index + 1;
+      while (/\s/.test(input[nextIndex] || '')) nextIndex += 1;
+      if (input[nextIndex] === '}' || input[nextIndex] === ']') continue;
+    }
+    output += character;
+  }
+  return output;
+};
+
+const parseGeminiJson = (input) => {
+  const normalized = input.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  try {
+    return JSON.parse(normalized);
+  } catch (originalError) {
+    const repaired = removeTrailingJsonCommas(normalized);
+    if (repaired !== normalized) {
+      try {
+        return JSON.parse(repaired);
+      } catch {}
+    }
+    throw originalError;
+  }
+};
+
 const requestGeminiJson = async (payload, key, purpose, emptyMessage) => {
   let lastParseError;
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -284,7 +327,7 @@ const requestGeminiJson = async (payload, key, purpose, emptyMessage) => {
     const resultText = data.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
     if (!resultText) throw new Error(emptyMessage);
     try {
-      return JSON.parse(resultText);
+      return parseGeminiJson(resultText);
     } catch (error) {
       lastParseError = error;
       if (attempt === 0) {
